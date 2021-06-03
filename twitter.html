@@ -1,0 +1,138 @@
+<div id='request' style="display: grid; padding: 10vh;">
+    <p class="lead" style="margin: auto;">
+        May we access your tweets?
+    </p>
+    <br>
+    <div id="request-token" href="/twitter/request_token" style="margin: auto;cursor: pointer;font-weight: 700;" target="_blank" class="btn btn-success">Get Twitter Data</div>
+    <div id='ready' style="display: none; margin: auto; padding-top: 5vh">
+        <button onclick='nextTweet()'>Start Tagging</button>
+    </div>
+</div>
+
+
+
+<div id="tagger" style="display: none;">
+    <div id='twitter-box' style='margin: auto; width: 50%'> <!--Div for the Tweet side of the UI-->
+        <div id="tweet-box"></div> <!--Div for the Tweet itself-->
+    </div>
+    <div id='survey-container' style="display: flex;justify-content: center;align-items: center;margin:auto"> <!--Div for the survey side of the UI-->
+        <div id='survey-box'>
+            <div id='survey'> <!--Div where we'll add the survey questions-->
+                
+            </div>
+            <button onclick='nextTweet()'>Submit</button> <!--button to submit the data and go to the next tweet-->
+        </div>
+    </div>
+</div>
+
+
+<script>
+var tweets= new Array()
+var tweet_ids=new Array()   //used to 
+var tweet = ''               //used to save the individual tweet in the final data
+var next_tweet=0            //used to iterate through the list of tweets
+
+ // when someone presses the request-token button, call readTwitterTimeline, 
+    // post the timeline to the console, and get the most recent 200 tweets.
+    makeTwitterButton("#request-token", () => {
+        console.log("making api call");
+        //fetch 20 tweets and get 10
+        (readTwitterTimeline(
+            //defining the callback function "cb"
+            (timeline) => {     
+                console.log(timeline)                   //show tweet json block in the console
+                tweets = tweets.concat(timeline);
+                $('#ready').show() 
+            }, 50,20))                         //then show the first tweet
+    })
+//Save and empty the previous tweet and survey and pull in the next Tweet
+function nextTweet(){
+    $('#tweet-box').empty()                     //clear out the previous tweet, if any
+    
+    
+    //if it's the first tweet
+    if (next_tweet==0){
+        $('#request').hide();                   //hide the request div
+        $('#tagger').css('display', 'flex');    //show the tagger interface
+        configSurvey();                         //create an empty survey
+        tweet=tweets[next_tweet]                //get the tweet
+        showTweet(tweet.id_str)                 //show the tweet to the user
+        next_tweet++                            //increment for next time
+    }  //else another tweet in the range
+    else if (next_tweet<tweets.length){   
+        saveSurvey()                            //save the survey data (also creates an empty survey)
+        tweet=tweets[next_tweet]                //get the next tweet we need
+        showTweet(tweet.id_str)                 //show the tweet to the user
+        next_tweet++                            //increment by one for the next time
+    }else{
+        experimentComplete()                     //if there is no next tweet, end the experiment
+    }
+    
+}
+
+//Render the tweet using Twitter's nice viewer
+function showTweet(tid){
+    //tid is the tweet id - '1234567897654321'
+    twttr.widgets.createTweet(
+        tid, 
+        document.getElementById('tweet-box')        //what div in the HTML to put the tweet in
+    ); 
+};
+
+
+/**
+ * cb: callback function that will be called with the complete timeline as an array
+ * count (optional): number of Tweets to retreive per single call to the Twitter API, max 200, default 20
+ * max_tweets (optional): stop retreiving Tweets after at least this many have been returned, default 3200
+ * max_id: ignore, don't set this
+ * timeline: ignore, don't set this
+*/
+function readTwitterTimeline(cb, count, max_tweets, max_id, timeline) {
+    if(max_id) {
+        let params = {"max_id": max_id};
+        if(count) {
+            params["count"] = count;
+        }
+        
+        twitterAPICall("statuses/user_timeline", params, (data) => {
+            if(data.length > 0) {
+                let minID = data[data.length - 1].id_str;
+                timeline = timeline.concat(data);
+                console.log(timeline.length + " tweets read!");
+                if(!max_tweets || timeline.length < max_tweets) { //if we haven't reaching the max_tweets, run it again
+                    readTwitterTimeline(cb, count, max_tweets, sub1(minID), timeline);
+                }
+                else {
+                    cb(timeline);  
+                }
+            }
+            else {
+                cb(timeline);   
+            }
+        });
+    }
+    else {
+        twitterAPICall("statuses/user_timeline", {"count": 1}, (data) => {
+            let minID = data[data.length - 1].id_str;
+            readTwitterTimeline(cb, count, max_tweets, sub1(minID), data);
+        });
+    }
+}
+
+//utilit function for identifying the last tweet in an API request
+// note that this will wrap around, so not good for retreiving the first ever Tweet
+function sub1(s) {
+    let num =  s.split("");
+    num.map(x => parseInt(x));
+    for(let i = num.length - 1; i >= 0; i--) {
+        if(num[i] > 0) {
+            num[i] = num[i] - 1;
+            break;
+        }
+        else {
+            num[i] = 9;
+        }
+    }
+    return num.join("");
+}
+</script>
